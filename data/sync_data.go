@@ -120,56 +120,68 @@ func All_Total_Summary(feature_flag bool, data []any) any {
 
 func Work_NonChannel() []any {
 	var FinalData []any
+	var WorkGroups sync.WaitGroup
+	var Mutex sync.Mutex
 	for i := 0; i < 2000; i++ {
-		Employees := models.Employee{
-			EmpID:        uint64(i + 1),
-			Fullname:     randomFullName(),
-			Salary:       uint64(randRange(5000, 15000)),
-			Total_Salary: 0,
-			Status:       randStatus(),
-		}
-
-		switch Employees.Status {
-		case models.PERMANENT:
-			temp_Permanent := models.PermanentEmployee{
-				Employee: Employees,
+		WorkGroups.Add(1)
+		go func(index int) {
+			defer WorkGroups.Done()
+			Employees := models.Employee{
+				EmpID:        uint64(index + 1),
+				Fullname:     randomFullName(),
+				Salary:       uint64(randRange(5000, 15000)),
+				Total_Salary: 0,
+				Status:       randStatus(),
 			}
-			temp_insurance, err := temp_Permanent.InsuranceEmployee(string(Employees.Status))
-			if err != nil {
-				fmt.Printf("Error assigning insurance for PermanentEmployee %d: %v\n", Employees.EmpID, err)
-				continue
+			switch Employees.Status {
+			case models.PERMANENT:
+				temp_Permanent := models.PermanentEmployee{
+					Employee: Employees,
+				}
+				temp_insurance, err := temp_Permanent.InsuranceEmployee(string(Employees.Status))
+				if err != nil {
+					fmt.Printf("Error assigning insurance for PermanentEmployee %d: %v\n", Employees.EmpID, err)
+					break
+				}
+				temp_Permanent.Insurance = temp_insurance
+				// Employees.Total_Salary = temp_Permanent.Insurance + temp_Permanent.Salary
+				Mutex.Lock()
+				DataEmployee = append(DataEmployee, temp_Permanent)
+				Mutex.Unlock()
+			case models.CONTRACT:
+				temp_Contract := models.ContractEmployee{
+					Employee: Employees,
+				}
+				temp_overtime, err := temp_Contract.OvertimeEmployee(string(Employees.Status))
+				if err != nil {
+					fmt.Printf("Error assigning insurance for PermanentEmployee %d: %v\n", Employees.EmpID, err)
+					break
+				}
+				temp_Contract.Overtime = temp_overtime
+				// Employees.Total_Salary = temp_Contract.Overtime + temp_Contract.Salary
+				Mutex.Lock()
+				DataEmployee = append(DataEmployee, temp_Contract)
+				Mutex.Unlock()
+			case models.TRAINEE:
+				temp_Trainee := models.TraineeEmployee{
+					Employee: Employees,
+				}
+				temp_allowance, err := temp_Trainee.AllowanceEmployee(string(Employees.Status))
+				if err != nil {
+					fmt.Printf("Error assigning insurance for PermanentEmployee %d: %v\n", Employees.EmpID, err)
+					break
+				}
+				temp_Trainee.Allowance = temp_allowance
+				// Employees.Total_Salary = temp_Trainee.Allowance + temp_Trainee.Salary
+				Mutex.Lock()
+				DataEmployee = append(DataEmployee, temp_Trainee)
+				Mutex.Unlock()
+			default:
+				break
 			}
-			temp_Permanent.Insurance = temp_insurance
-			// Employees.Total_Salary = temp_Permanent.Insurance + temp_Permanent.Salary
-			DataEmployee = append(DataEmployee, temp_Permanent)
-		case models.CONTRACT:
-			temp_Contract := models.ContractEmployee{
-				Employee: Employees,
-			}
-			temp_overtime, err := temp_Contract.OvertimeEmployee(string(Employees.Status))
-			if err != nil {
-				fmt.Printf("Error assigning insurance for PermanentEmployee %d: %v\n", Employees.EmpID, err)
-				continue
-			}
-			temp_Contract.Overtime = temp_overtime
-			// Employees.Total_Salary = temp_Contract.Overtime + temp_Contract.Salary
-			DataEmployee = append(DataEmployee, temp_Contract)
-		case models.TRAINEE:
-			temp_Trainee := models.TraineeEmployee{
-				Employee: Employees,
-			}
-			temp_allowance, err := temp_Trainee.AllowanceEmployee(string(Employees.Status))
-			if err != nil {
-				fmt.Printf("Error assigning insurance for PermanentEmployee %d: %v\n", Employees.EmpID, err)
-				continue
-			}
-			temp_Trainee.Allowance = temp_allowance
-			// Employees.Total_Salary = temp_Trainee.Allowance + temp_Trainee.Salary
-			DataEmployee = append(DataEmployee, temp_Trainee)
-		default:
-			break
-		}
+		}(i)
 	}
+	WorkGroups.Wait()
 	FinalData = append(FinalData, DataEmployee...)
 	return FinalData
 }
